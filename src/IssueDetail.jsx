@@ -81,17 +81,19 @@ const selectCls =
   'w-full text-[13px] text-gray-800 border border-gray-200 rounded-md px-2 py-1.5 bg-white hover:border-gray-300 outline-none focus:border-indigo-400'
 
 export default function IssueDetail({
-  issue, maps, types, sprintNames, projectDir, onUpdate, onMoveSprint, onSelect, onClose, onAddChild, onDelete, onDep,
+  issue, maps, types, sprintNames, projectDir, onUpdate, onMoveSprint, onSelect, onClose, onAddChild, onDelete, onDep, onSetEpic,
 }) {
   const [title, setTitle] = useState(issue.title)
   const [desc, setDesc] = useState(issue.description || '')
   const [copied, setCopied] = useState(false)
   const [adding, setAdding] = useState(null) // 'blockedBy' | 'blocks' — which dep picker is open
+  const [epicEdit, setEpicEdit] = useState(null) // null = display mode; string = draft epic id ('' = none)
 
   useEffect(() => {
     setTitle(issue.title)
     setDesc(issue.description || '')
     setAdding(null)
+    setEpicEdit(null)
   }, [issue.id, issue.updated_at])
 
   const titleDirty = title.trim() && title.trim() !== issue.title
@@ -120,6 +122,7 @@ export default function IssueDetail({
   })
 
   const parent = maps.byId[maps.parentOf[issue.id]]
+  const epics = Object.values(maps.byId).filter(i => i.issue_type === 'epic')
   const kids = maps.childrenOf[issue.id] || []
   const prog = epicProgress(issue.id, maps)
   const blockers = maps.blockedBy[issue.id] || []
@@ -249,9 +252,39 @@ export default function IssueDetail({
           )}
         </Section>
 
-        {parent && (
+        {issue.issue_type !== 'epic' && (
           <Section title="Epic">
-            <EpicChip epic={parent} onClick={onSelect} />
+            {epicEdit === null ? (
+              <div className="flex items-center gap-1.5">
+                {parent ? <EpicChip epic={parent} onClick={onSelect} /> : <span className="text-[13px] text-gray-400">None</span>}
+                <button
+                  title="Edit epic"
+                  onClick={() => setEpicEdit(parent?.id ?? '')}
+                  className="text-gray-400 hover:text-gray-700 text-[12px] leading-none px-1"
+                >✎</button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <select className={selectCls} value={epicEdit} onChange={e => setEpicEdit(e.target.value)}>
+                  <option value="">None</option>
+                  {epics.map(ep => <option key={ep.id} value={ep.id}>{ep.title}</option>)}
+                  {parent && !epics.some(ep => ep.id === parent.id) && <option value={parent.id}>{parent.title}</option>}
+                </select>
+                <button
+                  title="Save"
+                  onClick={() => {
+                    if ((epicEdit || null) !== (parent?.id ?? null)) onSetEpic(issue.id, epicEdit || null)
+                    setEpicEdit(null)
+                  }}
+                  className="shrink-0 text-green-600 hover:bg-green-50 rounded px-1.5 py-1 text-[14px] leading-none"
+                >✓</button>
+                <button
+                  title="Discard"
+                  onClick={() => setEpicEdit(null)}
+                  className="shrink-0 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded px-1.5 py-1 text-[14px] leading-none"
+                >✕</button>
+              </div>
+            )}
           </Section>
         )}
 

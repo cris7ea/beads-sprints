@@ -265,6 +265,30 @@ test('adding a dependency from the detail pane runs bd dep add', async () => {
   await waitFor(() => expect(api.bd).toHaveBeenCalledWith('/proj', ['dep', 'add', 't1', 'e1']))
 })
 
+test('assigning an epic from the detail pane runs bd dep add with parent-child type', async () => {
+  const orphan = mk('t2', { title: 'Orphan Task', labels: ['sprint:Alpha'] })
+  const api = setupApp([orphan, epic])
+  render(<App />)
+  fireEvent.click(await screen.findByText('Orphan Task'))
+  fireEvent.click(await screen.findByTitle('Edit epic'))
+  const select = screen.getByText('Epic').parentElement.parentElement.querySelector('select')
+  fireEvent.change(select, { target: { value: 'e1' } })
+  fireEvent.click(screen.getByTitle('Save'))
+  await waitFor(() => expect(api.bd).toHaveBeenCalledWith('/proj', ['dep', 'add', 't2', 'e1', '--type', 'parent-child']))
+})
+
+test('clearing the epic from the detail pane runs bd dep remove', async () => {
+  const api = setupApp([kid, epic])
+  render(<App />)
+  fireEvent.click(await screen.findByText('Task One'))
+  fireEvent.click(await screen.findByTitle('Edit epic'))
+  const select = screen.getByText('Epic').parentElement.parentElement.querySelector('select')
+  expect(select.value).toBe('e1')
+  fireEvent.change(select, { target: { value: '' } })
+  fireEvent.click(screen.getByTitle('Save'))
+  await waitFor(() => expect(api.bd).toHaveBeenCalledWith('/proj', ['dep', 'remove', 't1', 'e1']))
+})
+
 // --- CreatedToast ---
 
 test('toast shows id + title, copies the id, and wires View/close', () => {

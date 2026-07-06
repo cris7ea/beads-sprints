@@ -361,6 +361,15 @@ export default function App() {
     await refresh()
   }
 
+  // epic membership = a parent-child dep on the child; swapping means remove old, add new
+  async function setEpic(childId, epicId) {
+    const cur = maps.parentOf[childId]
+    if (cur === epicId) return
+    if (cur) await bdRun(['dep', 'remove', childId, cur])
+    if (epicId) await bdRun(['dep', 'add', childId, epicId, '--type', 'parent-child'])
+    await refresh()
+  }
+
   async function deleteIssue(id) {
     if (!window.confirm(`Delete ${id}? This cannot be undone.`)) return
     const r = await bdRun(['delete', id, '--force'])
@@ -678,6 +687,7 @@ export default function App() {
             onAddChild={preset => setNewTask(preset)}
             onDelete={deleteIssue}
             onDep={editDep}
+            onSetEpic={setEpic}
           />
         )}
 

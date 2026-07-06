@@ -20,7 +20,7 @@ maps.childrenOf.e1.push('ghost') // unknown id → LinkRow fallback
 const props = over => ({
   issue: maps.byId.t1, maps, types: ['task', 'bug', 'epic'], sprintNames: ['Alpha', 'Beta'],
   projectDir: '/proj', onUpdate: vi.fn(), onMoveSprint: vi.fn(), onSelect: vi.fn(), onClose: vi.fn(),
-  onAddChild: vi.fn(), onDelete: vi.fn(), ...over,
+  onAddChild: vi.fn(), onDelete: vi.fn(), onSetEpic: vi.fn(), ...over,
 })
 
 beforeEach(() => {
@@ -104,6 +104,45 @@ test('status, priority, type and sprint selects', () => {
   expect(p.onMoveSprint).toHaveBeenCalledWith('t1', 'Beta')
   fireEvent.change(selectFor('Sprint'), { target: { value: '' } })
   expect(p.onMoveSprint).toHaveBeenCalledWith('t1', null)
+})
+
+test('epic edit: pencil opens the dropdown, check saves, cross discards', () => {
+  const p = props()
+  render(<IssueDetail {...p} />)
+  const epicSelect = () => screen.getByText('Epic').parentElement.parentElement.querySelector('select')
+
+  fireEvent.click(screen.getByTitle('Edit epic'))
+  expect(epicSelect().value).toBe('e1')
+  fireEvent.change(epicSelect(), { target: { value: '' } })
+  fireEvent.click(screen.getByTitle('Discard'))
+  expect(p.onSetEpic).not.toHaveBeenCalled()
+  screen.getByText('Big Epic') // back to the chip
+
+  fireEvent.click(screen.getByTitle('Edit epic'))
+  fireEvent.click(screen.getByTitle('Save')) // unchanged → no-op
+  expect(p.onSetEpic).not.toHaveBeenCalled()
+
+  fireEvent.click(screen.getByTitle('Edit epic'))
+  fireEvent.change(epicSelect(), { target: { value: '' } })
+  fireEvent.click(screen.getByTitle('Save'))
+  expect(p.onSetEpic).toHaveBeenCalledWith('t1', null)
+})
+
+test('orphan task shows None and can be assigned to an epic', () => {
+  const p = props({ issue: maps.byId.b1 })
+  render(<IssueDetail {...p} />)
+  screen.getByText('None')
+  fireEvent.click(screen.getByTitle('Edit epic'))
+  const select = screen.getByText('Epic').parentElement.parentElement.querySelector('select')
+  expect(select.value).toBe('')
+  fireEvent.change(select, { target: { value: 'e1' } })
+  fireEvent.click(screen.getByTitle('Save'))
+  expect(p.onSetEpic).toHaveBeenCalledWith('b1', 'e1')
+})
+
+test('epic section is hidden for epics', () => {
+  render(<IssueDetail {...props({ issue: maps.byId.e1 })} />)
+  expect(screen.queryByText('Epic')).toBeNull()
 })
 
 test('sprint select keeps an unknown membership as an extra option', () => {

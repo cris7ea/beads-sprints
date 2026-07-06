@@ -39,6 +39,8 @@ Sprints are just labels, so agents can follow them too. Add this to your project
 
 Replace `/Users/<you>` with your home directory or just tell your agent to help (if needed).
 
+Add `.beads/attachments` to your `.gitignore` if you won't want to commit/track image attachments.
+
 ## Run from source
 
 ```sh

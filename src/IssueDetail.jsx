@@ -19,10 +19,13 @@ function LinkRow({ id, maps, onSelect }) {
   )
 }
 
-function Section({ title, children }) {
+function Section({ title, action, children }) {
   return (
     <div>
-      <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1">{title}</div>
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{title}</div>
+        {action}
+      </div>
       {children}
     </div>
   )
@@ -32,10 +35,11 @@ const selectCls =
   'w-full text-[13px] text-gray-800 border border-gray-200 rounded-md px-2 py-1.5 bg-white hover:border-gray-300 outline-none focus:border-indigo-400'
 
 export default function IssueDetail({
-  issue, maps, types, sprintNames, projectDir, onUpdate, onMoveSprint, onSelect, onClose,
+  issue, maps, types, sprintNames, projectDir, onUpdate, onMoveSprint, onSelect, onClose, onAddChild, onDelete,
 }) {
   const [title, setTitle] = useState(issue.title)
   const [desc, setDesc] = useState(issue.description || '')
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     setTitle(issue.title)
@@ -75,8 +79,13 @@ export default function IssueDetail({
         <span
           className="text-[12px] text-gray-500 font-medium cursor-pointer hover:text-gray-700"
           title="Click to copy"
-          onClick={() => navigator.clipboard.writeText(issue.id)}
+          onClick={() => {
+            navigator.clipboard.writeText(issue.id)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000) // ponytail: re-click within 2s hides early; clearTimeout ref if it bothers anyone
+          }}
         >{issue.id}</span>
+        <span className={`text-[11px] text-green-600 transition-opacity duration-500 pointer-events-none ${copied ? 'opacity-100' : 'opacity-0'}`}>Copied!</span>
         <span className="flex-1" />
         <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-[16px] leading-none px-1">✕</button>
       </div>
@@ -190,7 +199,17 @@ export default function IssueDetail({
         )}
 
         {kids.length > 0 && (
-          <Section title={`Children · ${prog.done}/${prog.total} done`}>
+          <Section
+            title={`Children · ${prog.done}/${prog.total} done`}
+            action={
+              <button
+                onClick={() => onAddChild({ parentId: issue.id, sprint: curSprint })}
+                className="text-[11px] font-medium text-indigo-600 hover:bg-indigo-50 rounded px-1.5 py-0.5"
+              >
+                + Add task
+              </button>
+            }
+          >
             <div className="w-full h-1.5 rounded-full bg-gray-100 overflow-hidden mb-2">
               <div className="h-full bg-indigo-500" style={{ width: `${prog.total ? (prog.done / prog.total) * 100 : 0}%` }} />
             </div>
@@ -230,6 +249,15 @@ export default function IssueDetail({
 
         <div className="text-[11px] text-gray-400 pt-2 border-t border-gray-100">
           Created {new Date(issue.created_at).toLocaleDateString()} · Updated {new Date(issue.updated_at).toLocaleDateString()}
+        </div>
+
+        <div className="pt-3 border-t border-gray-100">
+          <button
+            onClick={() => onDelete(issue.id)}
+            className="text-[12px] font-medium text-red-600 hover:bg-red-50 rounded-md px-2.5 py-1.5 -ml-1"
+          >
+            Delete task
+          </button>
         </div>
       </div>
     </div>

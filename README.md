@@ -4,7 +4,7 @@ A macOS kanban board with sprints for [beads](https://github.com/steveyegge/bead
 
 ## Download
 
-Grab the app from [Releases](https://github.com/YOUR_USERNAME/beads-sprints/releases), unzip, and drag it to Applications.
+Grab the app from [Releases](https://github.com/cris7ea/beads-sprints/releases), unzip, and drag it to Applications.
 
 The app is unsigned, so on first launch: right-click the app → Open.
 
@@ -25,7 +25,7 @@ Sprints are just labels, so agents can follow them too. Add this to your project
   - Never label a task with a sprint that isn't the active one.
 ```
 
-Replace `/Users/<you>` with your home directory.
+Replace `/Users/<you>` with your home directory or just tell your agent to help (if needed).
 
 ## Run from source
 

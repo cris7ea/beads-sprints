@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BASE_TYPES, COLUMNS, buildMaps, discoverSprints, matchIssue, moveId, sortByOrder, sprintLabels } from './model'
+import { BASE_TYPES, COLUMNS, PRIORITY_LABELS, buildMaps, discoverSprints, matchIssue, moveId, sortByOrder, sprintLabels } from './model'
 import Board from './Board'
 import Backlog from './Backlog'
 import IssueDetail from './IssueDetail'
-import { RefreshIcon, EyeIcon, SprintMark, Chevron, SearchIcon, TypeIcon, StatusDot, PriorityBadge } from './ui'
+import { RefreshIcon, EyeIcon, SprintMark, Chevron, SearchIcon, TypeIcon, StatusDot, PriorityBadge, EpicChip } from './ui'
 
 function ProjectPicker({ settings, onOpen, onPick, onRemove }) {
   const recents = settings?.recentProjects || []
@@ -106,6 +106,104 @@ function FindModal({ issues, types, onSelect, onClose }) {
   )
 }
 
+// exported for tests
+export function NewIssueModal({ preset, maps, types, sprintNames, onCreate, onClose }) {
+  const [title, setTitle] = useState('')
+  const [type, setType] = useState('task')
+  const [priority, setPriority] = useState(2)
+  const [sprint, setSprint] = useState(preset.sprint ?? '')
+  const parent = preset.parentId ? maps.byId[preset.parentId] : null
+  const submit = () => {
+    const t = title.trim()
+    if (!t) return
+    onCreate({ title: t, type, priority, sprint: sprint || null, parentId: preset.parentId || null })
+    onClose()
+  }
+  const capCls = 'text-[11px] font-semibold uppercase tracking-wide text-gray-400'
+  const selCls = 'w-full text-[12px] text-gray-800 border border-gray-200 rounded-md px-1.5 py-1 bg-white outline-none focus:border-indigo-400'
+  return (
+    <div className="fixed inset-0 bg-black/25 flex items-start justify-center pt-24 z-50" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl border border-gray-200 w-[420px] max-w-[90vw] p-5" onClick={e => e.stopPropagation()}>
+        <div className="text-[15px] font-semibold text-gray-900">New task</div>
+        {parent && (
+          <div className="flex items-center gap-1.5 mt-1.5 text-[12px] text-gray-500">
+            In epic <EpicChip epic={parent} />
+          </div>
+        )}
+        <input
+          autoFocus
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') submit()
+            if (e.key === 'Escape') onClose()
+          }}
+          placeholder="What needs to be done?"
+          className="w-full mt-3 text-[13px] border border-gray-200 rounded-md px-2.5 py-1.5 outline-none focus:border-indigo-400"
+        />
+        <div className="grid grid-cols-3 gap-2 mt-3">
+          <label className="flex flex-col gap-1">
+            <span className={capCls}>Type</span>
+            <select value={type} onChange={e => setType(e.target.value)} className={selCls}>
+              {types.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className={capCls}>Priority</span>
+            <select value={priority} onChange={e => setPriority(Number(e.target.value))} className={selCls}>
+              {PRIORITY_LABELS.map((l, i) => <option key={i} value={i}>{l}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className={capCls}>Sprint</span>
+            <select value={sprint} onChange={e => setSprint(e.target.value)} className={selCls}>
+              <option value="">Backlog</option>
+              {sprintNames.map(n => <option key={n} value={n}>{n}</option>)}
+              {sprint && !sprintNames.includes(sprint) && <option value={sprint}>{sprint}</option>}
+            </select>
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          <button onClick={onClose} className="text-[13px] font-medium text-gray-600 hover:bg-gray-100 rounded-md px-3 py-1.5">
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={!title.trim()}
+            className="text-[13px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 rounded-md px-3 py-1.5"
+          >
+            Create task
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// exported for tests
+export function CreatedToast({ toast, onView, onClose }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-gray-900 text-white rounded-lg shadow-lg pl-3.5 pr-1.5 py-1.5">
+      <span className="text-[12px] font-medium text-gray-400 shrink-0">{toast.id}</span>
+      <span className="text-[13px] truncate max-w-64">{toast.title}</span>
+      <button
+        onClick={() => { navigator.clipboard.writeText(toast.id); setCopied(true) }}
+        className="text-[12px] font-medium text-indigo-300 hover:text-white hover:bg-white/10 rounded-md px-2 py-1 shrink-0"
+      >
+        {copied ? 'Copied!' : 'Copy ID'}
+      </button>
+      <button
+        onClick={onView}
+        className="text-[12px] font-medium text-indigo-300 hover:text-white hover:bg-white/10 rounded-md px-2 py-1"
+      >
+        View
+      </button>
+      <button onClick={onClose} className="text-gray-500 hover:text-white px-1.5 text-[14px] leading-none">✕</button>
+    </div>
+  )
+}
+
 export default function App() {
   const [settings, setSettings] = useState(null)
   const [dir, setDir] = useState(null)
@@ -119,6 +217,14 @@ export default function App() {
   const [completing, setCompleting] = useState(null) // { name, count } while the complete-sprint modal is open
   const [moveTarget, setMoveTarget] = useState('') // '' = backlog
   const [finding, setFinding] = useState(false)
+  const [newTask, setNewTask] = useState(null) // { sprint?, parentId? } while the create-task modal is open
+  const [created, setCreated] = useState(null) // { id, title } — "task created" toast
+
+  useEffect(() => {
+    if (!created) return
+    const t = setTimeout(() => setCreated(null), 6000)
+    return () => clearTimeout(t)
+  }, [created])
 
   useEffect(() => {
     if (!dir) return
@@ -235,6 +341,27 @@ export default function App() {
   async function updateIssue(id, args) {
     await bdRun(['update', id, ...args])
     await refresh()
+  }
+
+  async function createIssue({ title, type, priority, sprint, parentId }) {
+    // the sprint label is set explicitly, so don't let a parented task inherit the epic's labels
+    const args = ['create', title, '-t', type, '-p', String(priority), '-l', sprint ? labelFor(sprint) : 'backlog', '--silent']
+    if (parentId) args.push('--parent', parentId, '--no-inherit-labels')
+    const r = await bdRun(args)
+    if (r.ok) {
+      const id = r.stdout.trim() // --silent prints only the new issue id
+      if (id) setCreated({ id, title })
+      await refresh()
+    }
+  }
+
+  async function deleteIssue(id) {
+    if (!window.confirm(`Delete ${id}? This cannot be undone.`)) return
+    const r = await bdRun(['delete', id, '--force'])
+    if (r.ok) {
+      setSelectedId(null)
+      await refresh()
+    }
   }
 
   async function moveToSprint(issueId, name) {
@@ -390,6 +517,12 @@ export default function App() {
 
         <span className="flex-1" />
 
+        <button
+          onClick={() => setNewTask({ sprint: tab === 'board' ? activeSprint : null })}
+          className="text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md px-2.5 py-1"
+        >
+          + Create task
+        </button>
         <select
           value={filters.priority}
           onChange={e => setFilters(f => ({ ...f, priority: e.target.value }))}
@@ -465,6 +598,18 @@ export default function App() {
             onRename={renameSprint}
             onSelect={setSelectedId}
             selectedId={selectedId}
+            onNewIssue={name => setNewTask({ sprint: name })}
+          />
+        )}
+
+        {newTask && (
+          <NewIssueModal
+            preset={newTask}
+            maps={maps}
+            types={types}
+            sprintNames={sprintNames}
+            onCreate={createIssue}
+            onClose={() => setNewTask(null)}
           />
         )}
 
@@ -524,6 +669,17 @@ export default function App() {
             onMoveSprint={moveToSprint}
             onSelect={setSelectedId}
             onClose={() => setSelectedId(null)}
+            onAddChild={preset => setNewTask(preset)}
+            onDelete={deleteIssue}
+          />
+        )}
+
+        {created && (
+          <CreatedToast
+            key={created.id}
+            toast={created}
+            onView={() => { setSelectedId(created.id); setCreated(null) }}
+            onClose={() => setCreated(null)}
           />
         )}
       </div>

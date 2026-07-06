@@ -52,7 +52,7 @@ function Row({ issue, maps, onSelect, selected, nested, group, expanded, onToggl
 
 export default function Backlog({
   issues, maps, sprintNames, completedNames = [], activeSprint, labelFor, showClosed,
-  onMoveSprint, sortIssues, onReorder, onStart, onComplete, onCreate, onRename, onSelect, selectedId,
+  onMoveSprint, sortIssues, onReorder, onStart, onComplete, onCreate, onRename, onSelect, selectedId, onNewIssue,
 }) {
   const [over, setOver] = useState() // sprint name | null (backlog) | undefined (none)
   const [overRow, setOverRow] = useState(null) // { id, before } — insert-position indicator
@@ -238,8 +238,8 @@ export default function Backlog({
                   </button>
                 )}
               </div>
-              {!isCollapsed && (
-                rows.length === 0 ? (
+              {!isCollapsed && (<>
+                {rows.length === 0 ? (
                   <div className="px-3 py-4 text-[12px] text-gray-400">
                     {name ? 'Drag issues here to add them to this sprint.' : 'Backlog is empty.'}
                   </div>
@@ -271,8 +271,16 @@ export default function Backlog({
                       </div>
                     )
                   })
-                )
-              )}
+                )}
+                {!done && (
+                  <button
+                    onClick={() => onNewIssue(name)}
+                    className="w-full flex items-center gap-1.5 px-3 h-9 text-[13px] font-medium text-gray-500 hover:text-gray-800 hover:bg-gray-50 border-t border-gray-100 rounded-b-lg"
+                  >
+                    + Create
+                  </button>
+                )}
+              </>)}
             </div>
           )
         })}

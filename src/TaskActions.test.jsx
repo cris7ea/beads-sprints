@@ -1,6 +1,6 @@
 // Tests for task creation (toolbar / backlog sections / epic children) and deletion.
 // Kept in its own file — repo-wide test coverage is being added separately.
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import App, { NewIssueModal, CreatedToast } from './App'
 import Backlog from './Backlog'
 import IssueDetail from './IssueDetail'
@@ -95,7 +95,7 @@ test('each open section has a + Create footer targeting that sprint (none for co
 const detailProps = over => ({
   issue: epic, maps: buildMaps([epic, kid]), types: ['task', 'epic'], sprintNames: ['Alpha', 'Beta'],
   projectDir: '/proj', onUpdate: vi.fn(), onMoveSprint: vi.fn(), onSelect: vi.fn(), onClose: vi.fn(),
-  onAddChild: vi.fn(), onDelete: vi.fn(), ...over,
+  onAddChild: vi.fn(), onDelete: vi.fn(), onDep: vi.fn(), ...over,
 })
 
 test('epic children header has an Add task button that auto-detects the sprint', () => {
@@ -154,6 +154,115 @@ test('toolbar + Create task opens the modal preset to the active sprint and runs
   )
   fireEvent.click(await screen.findByText('✕')) // dismiss the toast
   expect(screen.queryByText('n1')).toBeNull()
+})
+
+// --- IssueDetail: bottom Save/Cancel bar + keyboard shortcuts ---
+
+test('Save/Cancel are disabled until an edit is made, then save both title and description', () => {
+  const p = detailProps()
+  render(<IssueDetail {...p} />)
+  const save = screen.getByText('Save changes')
+  const cancel = screen.getByText('Cancel')
+  expect(save.disabled).toBe(true)
+  expect(cancel.disabled).toBe(true)
+  fireEvent.change(screen.getByDisplayValue('Epic One'), { target: { value: 'New name' } })
+  fireEvent.change(screen.getByPlaceholderText('Add a description… (paste or drop images)'), { target: { value: 'new words' } })
+  expect(save.disabled).toBe(false)
+  fireEvent.mouseDown(save) // must not steal focus (would trigger the title blur-save)
+  fireEvent.mouseDown(cancel)
+  fireEvent.click(save)
+  expect(p.onUpdate).toHaveBeenCalledWith('e1', ['--title', 'New name', '-d', 'new words'])
+})
+
+test('Cancel reverts pending edits without saving', () => {
+  const p = detailProps()
+  render(<IssueDetail {...p} />)
+  const title = screen.getByDisplayValue('Epic One')
+  const area = screen.getByPlaceholderText('Add a description… (paste or drop images)')
+  fireEvent.change(title, { target: { value: 'Oops' } })
+  fireEvent.change(area, { target: { value: 'scratch that' } })
+  fireEvent.click(screen.getByText('Cancel'))
+  expect(title.value).toBe('Epic One')
+  expect(area.value).toBe('')
+  expect(p.onUpdate).not.toHaveBeenCalled()
+})
+
+test('⌘S saves pending edits and Escape discards them', () => {
+  const p = detailProps()
+  render(<IssueDetail {...p} />)
+  const area = screen.getByPlaceholderText('Add a description… (paste or drop images)')
+  fireEvent.change(area, { target: { value: 'typed' } })
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(area.value).toBe('')
+  fireEvent.change(area, { target: { value: 'typed again' } })
+  fireEvent.keyDown(window, { key: 's', metaKey: true })
+  expect(p.onUpdate).toHaveBeenCalledWith('e1', ['-d', 'typed again'])
+})
+
+// --- IssueDetail: dependency add/update/remove ---
+
+const blocker = mk('x1', { title: 'Blocker One' })
+const free = mk('x2', { title: 'Free Agent' })
+const depTask = mk('t9', { title: 'Dep Holder', dependencies: [{ type: 'blocks', depends_on_id: 'x1' }] })
+const depMaps = () => buildMaps([depTask, blocker, free])
+
+test('removing a blocker calls onDep with (remove, blocked, blocker)', () => {
+  const p = detailProps({ issue: depTask, maps: depMaps() })
+  render(<IssueDetail {...p} />)
+  screen.getByText('Blocker One')
+  fireEvent.click(screen.getByTitle('Remove link'))
+  expect(p.onDep).toHaveBeenCalledWith('remove', 't9', 'x1')
+})
+
+test('removing from the Blocks list reverses the direction', () => {
+  const p = detailProps({ issue: blocker, maps: depMaps() })
+  render(<IssueDetail {...p} />)
+  screen.getByText('Dep Holder') // t9 is listed under Blocks
+  fireEvent.click(screen.getByTitle('Remove link'))
+  expect(p.onDep).toHaveBeenCalledWith('remove', 't9', 'x1')
+})
+
+test('adding a blocker: picker excludes self and existing links, then calls onDep add', () => {
+  const p = detailProps({ issue: depTask, maps: depMaps() })
+  render(<IssueDetail {...p} />)
+  fireEvent.click(screen.getAllByText('+ Add')[0]) // Blocked by section
+  const picker = screen.getByPlaceholderText('Search issues…').parentElement
+  expect(within(picker).queryByText('Dep Holder')).toBeNull() // self
+  expect(within(picker).queryByText('Blocker One')).toBeNull() // already linked
+  fireEvent.change(screen.getByPlaceholderText('Search issues…'), { target: { value: 'free' } })
+  fireEvent.click(within(picker).getByText('Free Agent'))
+  expect(p.onDep).toHaveBeenCalledWith('add', 't9', 'x2')
+  expect(screen.queryByPlaceholderText('Search issues…')).toBeNull() // picker closed
+})
+
+test('adding to Blocks links the picked issue as the blocked one', () => {
+  const p = detailProps({ issue: depTask, maps: depMaps() })
+  render(<IssueDetail {...p} />)
+  fireEvent.click(screen.getAllByText('+ Add')[1]) // Blocks section
+  const picker = screen.getByPlaceholderText('Search issues…').parentElement
+  fireEvent.click(within(picker).getByText('Free Agent'))
+  expect(p.onDep).toHaveBeenCalledWith('add', 'x2', 't9')
+})
+
+test('Escape closes either dep picker without adding', () => {
+  const p = detailProps({ issue: depTask, maps: depMaps() })
+  render(<IssueDetail {...p} />)
+  for (const section of [0, 1]) {
+    fireEvent.click(screen.getAllByText('+ Add')[section])
+    fireEvent.keyDown(screen.getByPlaceholderText('Search issues…'), { key: 'Escape' })
+    expect(screen.queryByPlaceholderText('Search issues…')).toBeNull()
+  }
+  expect(p.onDep).not.toHaveBeenCalled()
+})
+
+test('adding a dependency from the detail pane runs bd dep add', async () => {
+  const api = setupApp([kid, epic])
+  render(<App />)
+  fireEvent.click(await screen.findByText('Task One'))
+  fireEvent.click((await screen.findAllByText('+ Add'))[0]) // Blocked by
+  const picker = screen.getByPlaceholderText('Search issues…').parentElement
+  fireEvent.click(within(picker).getByText('Epic One'))
+  await waitFor(() => expect(api.bd).toHaveBeenCalledWith('/proj', ['dep', 'add', 't1', 'e1']))
 })
 
 // --- CreatedToast ---

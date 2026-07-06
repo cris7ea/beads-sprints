@@ -1,21 +1,67 @@
 import { useEffect, useState } from 'react'
-import { COLUMNS, PRIORITY_LABELS, sprintLabels, sprintNameOf, epicProgress } from './model'
+import { COLUMNS, PRIORITY_LABELS, sprintLabels, sprintNameOf, epicProgress, matchIssue } from './model'
 import { TypeIcon, StatusDot, EpicChip } from './ui'
 
-function LinkRow({ id, maps, onSelect }) {
+function LinkRow({ id, maps, onSelect, onRemove }) {
   const it = maps.byId[id]
   if (!it) return <div className="text-[12px] text-gray-400 px-2 py-1">{id}</div>
   return (
-    <button
+    <div
       onClick={() => onSelect(id)}
-      className="w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 text-left"
+      className="group w-full flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 text-left cursor-pointer"
     >
       <StatusDot status={it.status} />
       <span className="text-[11px] text-gray-500 font-medium shrink-0">{it.id}</span>
       <span className={`text-[12px] truncate ${it.status === 'closed' ? 'text-gray-400 line-through' : 'text-gray-800'}`}>
         {it.title}
       </span>
-    </button>
+      {onRemove && (
+        <button
+          onClick={e => { e.stopPropagation(); onRemove(id) }}
+          title="Remove link"
+          className="ml-auto hidden group-hover:block shrink-0 text-gray-400 hover:text-red-600 px-1 text-[12px] leading-none"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  )
+}
+
+// inline search to link another issue; excludes self and already-linked ids
+function DepPicker({ maps, exclude, onPick, onClose }) {
+  const [q, setQ] = useState('')
+  const results = Object.values(maps.byId)
+    .filter(i => !exclude.has(i.id) && matchIssue(i, { q }))
+    .slice(0, 8)
+  return (
+    <div className="mt-1 border border-gray-200 rounded-md p-1.5">
+      <input
+        autoFocus
+        value={q}
+        onChange={e => setQ(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }}
+        placeholder="Search issues…"
+        className="w-full text-[12px] border border-gray-200 rounded px-2 py-1 outline-none focus:border-indigo-400"
+      />
+      <div className="flex flex-col mt-1">
+        {results.length === 0 ? (
+          <div className="text-[12px] text-gray-400 px-2 py-1">No matching issues.</div>
+        ) : (
+          results.map(i => (
+            <button
+              key={i.id}
+              onClick={() => onPick(i.id)}
+              className="w-full flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 text-left"
+            >
+              <StatusDot status={i.status} />
+              <span className="text-[11px] text-gray-500 font-medium shrink-0">{i.id}</span>
+              <span className="text-[12px] text-gray-800 truncate">{i.title}</span>
+            </button>
+          ))
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -35,16 +81,43 @@ const selectCls =
   'w-full text-[13px] text-gray-800 border border-gray-200 rounded-md px-2 py-1.5 bg-white hover:border-gray-300 outline-none focus:border-indigo-400'
 
 export default function IssueDetail({
-  issue, maps, types, sprintNames, projectDir, onUpdate, onMoveSprint, onSelect, onClose, onAddChild, onDelete,
+  issue, maps, types, sprintNames, projectDir, onUpdate, onMoveSprint, onSelect, onClose, onAddChild, onDelete, onDep,
 }) {
   const [title, setTitle] = useState(issue.title)
   const [desc, setDesc] = useState(issue.description || '')
   const [copied, setCopied] = useState(false)
+  const [adding, setAdding] = useState(null) // 'blockedBy' | 'blocks' — which dep picker is open
 
   useEffect(() => {
     setTitle(issue.title)
     setDesc(issue.description || '')
+    setAdding(null)
   }, [issue.id, issue.updated_at])
+
+  const titleDirty = title.trim() && title.trim() !== issue.title
+  const descDirty = desc !== (issue.description || '')
+
+  function saveAll() {
+    const args = []
+    if (titleDirty) args.push('--title', title.trim())
+    if (descDirty) args.push('-d', desc)
+    if (args.length) onUpdate(issue.id, args)
+  }
+
+  function cancelAll() {
+    setTitle(issue.title)
+    setDesc(issue.description || '')
+  }
+
+  // ⌘S saves pending edits, Escape discards them (⌘F etc. stay with the app-level handler)
+  useEffect(() => {
+    const onKey = e => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); saveAll() }
+      if (e.key === 'Escape' && (titleDirty || descDirty)) cancelAll()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   const parent = maps.byId[maps.parentOf[issue.id]]
   const kids = maps.childrenOf[issue.id] || []
@@ -174,22 +247,6 @@ export default function IssueDetail({
               })}
             </div>
           )}
-          {desc !== (issue.description || '') && (
-            <div className="flex gap-2 mt-1.5">
-              <button
-                onClick={() => onUpdate(issue.id, ['-d', desc])}
-                className="text-[12px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md px-2.5 py-1"
-              >
-                Save
-              </button>
-              <button
-                onClick={() => setDesc(issue.description || '')}
-                className="text-[12px] font-medium text-gray-600 hover:bg-gray-100 rounded-md px-2.5 py-1"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
         </Section>
 
         {parent && (
@@ -219,17 +276,57 @@ export default function IssueDetail({
           </Section>
         )}
 
-        {blockers.length > 0 && (
-          <Section title="Blocked by">
-            <div className="flex flex-col">{blockers.map(id => <LinkRow key={id} id={id} maps={maps} onSelect={onSelect} />)}</div>
-          </Section>
-        )}
+        <Section
+          title="Blocked by"
+          action={
+            <button
+              onClick={() => setAdding(a => (a === 'blockedBy' ? null : 'blockedBy'))}
+              className="text-[11px] font-medium text-indigo-600 hover:bg-indigo-50 rounded px-1.5 py-0.5"
+            >
+              + Add
+            </button>
+          }
+        >
+          <div className="flex flex-col">
+            {blockers.map(id => (
+              <LinkRow key={id} id={id} maps={maps} onSelect={onSelect} onRemove={oid => onDep('remove', issue.id, oid)} />
+            ))}
+          </div>
+          {adding === 'blockedBy' && (
+            <DepPicker
+              maps={maps}
+              exclude={new Set([issue.id, ...blockers])}
+              onPick={oid => { onDep('add', issue.id, oid); setAdding(null) }}
+              onClose={() => setAdding(null)}
+            />
+          )}
+        </Section>
 
-        {blocking.length > 0 && (
-          <Section title="Blocks">
-            <div className="flex flex-col">{blocking.map(id => <LinkRow key={id} id={id} maps={maps} onSelect={onSelect} />)}</div>
-          </Section>
-        )}
+        <Section
+          title="Blocks"
+          action={
+            <button
+              onClick={() => setAdding(a => (a === 'blocks' ? null : 'blocks'))}
+              className="text-[11px] font-medium text-indigo-600 hover:bg-indigo-50 rounded px-1.5 py-0.5"
+            >
+              + Add
+            </button>
+          }
+        >
+          <div className="flex flex-col">
+            {blocking.map(id => (
+              <LinkRow key={id} id={id} maps={maps} onSelect={onSelect} onRemove={oid => onDep('remove', oid, issue.id)} />
+            ))}
+          </div>
+          {adding === 'blocks' && (
+            <DepPicker
+              maps={maps}
+              exclude={new Set([issue.id, ...blocking])}
+              onPick={oid => { onDep('add', oid, issue.id); setAdding(null) }}
+              onClose={() => setAdding(null)}
+            />
+          )}
+        </Section>
 
         {related.length > 0 && (
           <Section title="Related">
@@ -259,6 +356,26 @@ export default function IssueDetail({
             Delete task
           </button>
         </div>
+      </div>
+
+      <div className="sticky bottom-0 mt-auto bg-white border-t border-gray-200 px-4 py-3 flex gap-2">
+        <button
+          onMouseDown={e => e.preventDefault()} // keep the title blur-save from firing before the revert
+          onClick={cancelAll}
+          disabled={!(titleDirty || descDirty)}
+          className="flex-1 text-[13px] font-medium text-gray-600 border border-gray-200 hover:bg-gray-100 disabled:opacity-40 rounded-md px-3 py-1.5"
+        >
+          Cancel
+        </button>
+        <button
+          onMouseDown={e => e.preventDefault()} // keep the title blur-save from firing a second update
+          onClick={saveAll}
+          disabled={!(titleDirty || descDirty)}
+          title="Save changes (⌘S)"
+          className="flex-1 text-[13px] font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 rounded-md px-3 py-1.5"
+        >
+          Save changes
+        </button>
       </div>
     </div>
   )

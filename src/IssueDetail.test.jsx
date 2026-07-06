@@ -121,7 +121,7 @@ test('description edit with save and cancel', () => {
   fireEvent.click(screen.getByText('Cancel'))
   expect(area.value).toBe(desc)
   fireEvent.change(area, { target: { value: 'changed' } })
-  fireEvent.click(screen.getByText('Save'))
+  fireEvent.click(screen.getByText('Save changes'))
   expect(p.onUpdate).toHaveBeenCalledWith('t1', ['-d', 'changed'])
 })
 

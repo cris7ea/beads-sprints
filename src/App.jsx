@@ -355,6 +355,12 @@ export default function App() {
     }
   }
 
+  // bd dep add/remove <blocked-id> <blocker-id> — first arg depends on the second
+  async function editDep(action, blockedId, blockerId) {
+    await bdRun(['dep', action, blockedId, blockerId])
+    await refresh()
+  }
+
   async function deleteIssue(id) {
     if (!window.confirm(`Delete ${id}? This cannot be undone.`)) return
     const r = await bdRun(['delete', id, '--force'])
@@ -671,6 +677,7 @@ export default function App() {
             onClose={() => setSelectedId(null)}
             onAddChild={preset => setNewTask(preset)}
             onDelete={deleteIssue}
+            onDep={editDep}
           />
         )}
 

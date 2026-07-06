@@ -8,7 +8,7 @@
     "coverage": "vitest run --coverage",
     "start": "vite build && electron .",
     "make-mac-app": "vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir",
-    "release": "npm run make-mac-app && ditto -c -k --keepParent 'release/mac-arm64/Beads Sprints.app' release/Beads-Sprints-mac-arm64.zip && gh release create v$npm_package_version release/Beads-Sprints-mac-arm64.zip --title v$npm_package_version --generate-notes"
+    "release": "node scripts/release.mjs"
   },
   "build": {
     "appId": "com.beads-sprints.app",

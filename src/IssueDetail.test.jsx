@@ -128,6 +128,25 @@ test('epic edit: pencil opens the dropdown, check saves, cross discards', () => 
   expect(p.onSetEpic).toHaveBeenCalledWith('t1', null)
 })
 
+test('⌘S commits a pending epic edit, Escape discards it', () => {
+  const p = props()
+  render(<IssueDetail {...p} />)
+  const epicSelect = () => screen.getByText('Epic').parentElement.parentElement.querySelector('select')
+
+  fireEvent.click(screen.getByTitle('Edit epic'))
+  fireEvent.change(epicSelect(), { target: { value: '' } })
+  fireEvent.keyDown(window, { key: 's', metaKey: true })
+  expect(p.onSetEpic).toHaveBeenCalledWith('t1', null)
+  screen.getByText('Big Epic') // back to display mode
+
+  p.onSetEpic.mockClear()
+  fireEvent.click(screen.getByTitle('Edit epic'))
+  fireEvent.change(epicSelect(), { target: { value: '' } })
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(p.onSetEpic).not.toHaveBeenCalled()
+  screen.getByText('Big Epic')
+})
+
 test('orphan task shows None and can be assigned to an epic', () => {
   const p = props({ issue: maps.byId.b1 })
   render(<IssueDetail {...p} />)

@@ -104,18 +104,23 @@ export default function IssueDetail({
     if (titleDirty) args.push('--title', title.trim())
     if (descDirty) args.push('-d', desc)
     if (args.length) onUpdate(issue.id, args)
+    if (epicEdit !== null) {
+      if ((epicEdit || null) !== (parent?.id ?? null)) onSetEpic(issue.id, epicEdit || null)
+      setEpicEdit(null)
+    }
   }
 
   function cancelAll() {
     setTitle(issue.title)
     setDesc(issue.description || '')
+    setEpicEdit(null)
   }
 
   // ⌘S saves pending edits, Escape discards them (⌘F etc. stay with the app-level handler)
   useEffect(() => {
     const onKey = e => {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); saveAll() }
-      if (e.key === 'Escape' && (titleDirty || descDirty)) cancelAll()
+      if (e.key === 'Escape' && (titleDirty || descDirty || epicEdit !== null)) cancelAll()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

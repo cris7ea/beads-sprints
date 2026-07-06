@@ -2,6 +2,18 @@
 
 A macOS kanban board with sprints for [beads](https://github.com/steveyegge/beads) (`bd`) projects. Sprints are plain `sprint:*` labels, so agents and the `bd` CLI see them too.
 
+<p align="center">
+  <img src="showcase/board.png" width="100%" alt="Sprint board with To Do, Blocked, In Progress and Done columns" />
+</p>
+<p align="center">
+  <img src="showcase/backlog.png" width="49.5%" alt="Backlog with sprint planning" />
+  <img src="showcase/epic-detail.png" width="49.5%" alt="Epic with children progress in the detail panel" />
+</p>
+<p align="center">
+  <img src="showcase/issue-detail.png" width="49.5%" alt="Issue detail with description, image attachments and dependencies" />
+  <img src="showcase/new-task.png" width="49.5%" alt="Create task modal" />
+</p>
+
 ## Download
 
 Grab the app from [Releases](https://github.com/cris7ea/beads-sprints/releases), unzip, and drag it to Applications.

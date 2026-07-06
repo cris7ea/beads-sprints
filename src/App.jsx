@@ -184,6 +184,7 @@ export function NewIssueModal({ preset, maps, types, sprintNames, onCreate, onCl
 export function ShortcutsModal({ onClose }) {
   const shortcuts = [
     ['⌘F', 'Find issues'],
+    ['⌘S', 'Save changes (open task)'],
     ['⌘⇧H', 'Collapse all epic tasks (backlog)'],
     ['?', 'Keyboard shortcuts'],
     ['Esc', 'Close dialogs & panels'],

@@ -1,0 +1,35 @@
+{
+  "name": "beads-sprints",
+  "version": "0.1.0",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "vite build && electron .",
+    "make-mac-app": "vite build && CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir",
+    "release": "npm run make-mac-app && ditto -c -k --keepParent 'release/mac-arm64/Beads Sprints.app' release/Beads-Sprints-mac-arm64.zip && gh release create v$npm_package_version release/Beads-Sprints-mac-arm64.zip --title v$npm_package_version --generate-notes"
+  },
+  "build": {
+    "appId": "com.beads-sprints.app",
+    "directories": { "output": "release" },
+    "productName": "Beads Sprints",
+    "files": [
+      "dist/**",
+      "electron/**"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools"
+    }
+  },
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.2",
+    "@vitejs/plugin-react": "^6.0.3",
+    "electron": "^43.0.0",
+    "electron-builder": "^26.15.3",
+    "tailwindcss": "^4.3.2",
+    "vite": "^8.1.3"
+  }
+}

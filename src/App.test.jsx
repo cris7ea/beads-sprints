@@ -383,3 +383,41 @@ test('tab and selection come from the URL', async () => {
   await screen.findByText('Active') // backlog tab
   await screen.findByDisplayValue('Task Four') // detail open from sel
 })
+
+test('shortcuts: ? opens help modal, ⌘⇧H collapses all epics in the backlog', async () => {
+  await openApp({ settings: projSettings(), issues: projIssues() })
+
+  // help modal via the ? toolbar button, closed with Escape
+  fireEvent.click(screen.getByTitle('Keyboard shortcuts (?)'))
+  screen.getByText('Collapse all epic tasks (backlog)')
+  fireEvent.keyDown(window, { key: 'Escape' })
+  expect(screen.queryByText('Collapse all epic tasks (backlog)')).toBeNull()
+
+  // ? key toggles it too, but not while typing in an input
+  fireEvent.keyDown(document.body, { key: '?' })
+  screen.getByText('Collapse all epic tasks (backlog)')
+  fireEvent.keyDown(document.body, { key: '?' })
+  const search = screen.getByTitle('Find issues (⌘F)')
+  fireEvent.click(search)
+  fireEvent.keyDown(screen.getByPlaceholderText('Find issues by title or id…'), { key: '?' })
+  expect(screen.queryByText('Collapse all epic tasks (backlog)')).toBeNull()
+  fireEvent.keyDown(window, { key: 'Escape' }) // close find modal
+
+  // epics never render on the board — only the chip on the child card mentions Epic One
+  expect(screen.getAllByText('Epic One')).toHaveLength(1)
+
+  // ⌘⇧H folds the backlog epics
+  goBacklog()
+  await screen.findByText('Task One')
+  fireEvent.keyDown(window, { key: 'H', metaKey: true, shiftKey: true })
+  expect(screen.queryByText('Task One')).toBeNull()
+})
+
+test('epic detail panel explains that epics are hidden on the board', async () => {
+  await openApp({ settings: projSettings(), issues: projIssues() })
+  goBacklog()
+  fireEvent.click(screen.getByText('Epic One'))
+  screen.getByTitle('Epics are hidden in board view')
+  fireEvent.click(screen.getByText('Task Four')) // non-epic → no hint
+  expect(screen.queryByTitle('Epics are hidden in board view')).toBeNull()
+})

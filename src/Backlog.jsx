@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { sprintLabels } from './model'
 import { inTopHalf, indicatorStyle } from './Board'
 import { TypeIcon, PriorityBadge, StatusDot, EpicChip, DepBadges, ProgressPill, Chevron, PencilIcon } from './ui'
@@ -53,6 +53,7 @@ function Row({ issue, maps, onSelect, selected, nested, group, expanded, onToggl
 export default function Backlog({
   issues, maps, sprintNames, completedNames = [], activeSprint, labelFor, showClosed,
   onMoveSprint, sortIssues, onReorder, onStart, onComplete, onCreate, onRename, onSelect, selectedId, onNewIssue,
+  collapseTick,
 }) {
   const [over, setOver] = useState() // sprint name | null (backlog) | undefined (none)
   const [overRow, setOverRow] = useState(null) // { id, before } — insert-position indicator
@@ -62,6 +63,14 @@ export default function Backlog({
   const [renameVal, setRenameVal] = useState('')
   const [secOpen, setSecOpen] = useState({}) // user overrides; completed sections default collapsed
   const [foldedEpics, setFoldedEpics] = useState(() => new Set()) // epic ids with hidden children
+
+  // ⌘⇧H in App bumps the tick → fold every epic; ref guard skips the mount run so tab switches stay unfolded
+  const lastTick = useRef(collapseTick)
+  useEffect(() => {
+    if (collapseTick === lastTick.current) return
+    lastTick.current = collapseTick
+    setFoldedEpics(new Set(issues.filter(i => i.issue_type === 'epic').map(i => i.id)))
+  }, [collapseTick])
 
   const sections = [
     ...sprintNames.map(n => ({ name: n })),

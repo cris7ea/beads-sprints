@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { COLUMNS, PRIORITY_LABELS, sprintLabels, sprintNameOf, epicProgress, matchIssue } from './model'
-import { TypeIcon, StatusDot, EpicChip } from './ui'
+import { TypeIcon, StatusDot, EpicChip, PencilIcon } from './ui'
 
 function LinkRow({ id, maps, onSelect, onRemove }) {
   const it = maps.byId[id]
@@ -162,6 +162,12 @@ export default function IssueDetail({
           }}
         >{issue.id}</span>
         <span className={`text-[11px] text-green-600 transition-opacity duration-500 pointer-events-none ${copied ? 'opacity-100' : 'opacity-0'}`}>Copied!</span>
+        {issue.issue_type === 'epic' && (
+          <span
+            title="Epics are hidden in board view"
+            className="flex items-center justify-center w-4 h-4 rounded-full border border-gray-300 text-gray-400 text-[10px] font-semibold cursor-help select-none"
+          >?</span>
+        )}
         <span className="flex-1" />
         <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-[16px] leading-none px-1">✕</button>
       </div>
@@ -260,8 +266,8 @@ export default function IssueDetail({
                 <button
                   title="Edit epic"
                   onClick={() => setEpicEdit(parent?.id ?? '')}
-                  className="text-gray-400 hover:text-gray-700 text-[12px] leading-none px-1"
-                >✎</button>
+                  className="text-gray-400 hover:text-gray-700 leading-none px-1"
+                ><PencilIcon /></button>
               </div>
             ) : (
               <div className="flex items-center gap-1.5">

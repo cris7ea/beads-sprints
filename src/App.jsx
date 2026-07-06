@@ -181,6 +181,31 @@ export function NewIssueModal({ preset, maps, types, sprintNames, onCreate, onCl
 }
 
 // exported for tests
+export function ShortcutsModal({ onClose }) {
+  const shortcuts = [
+    ['⌘F', 'Find issues'],
+    ['⌘⇧H', 'Collapse all epic tasks (backlog)'],
+    ['?', 'Keyboard shortcuts'],
+    ['Esc', 'Close dialogs & panels'],
+  ]
+  return (
+    <div className="fixed inset-0 bg-black/25 flex items-start justify-center pt-24 z-50" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-xl border border-gray-200 w-[320px] p-5" onClick={e => e.stopPropagation()}>
+        <div className="text-[15px] font-semibold text-gray-900">Keyboard shortcuts</div>
+        <div className="mt-3 flex flex-col gap-2">
+          {shortcuts.map(([keys, label]) => (
+            <div key={keys} className="flex items-center justify-between">
+              <span className="text-[13px] text-gray-700">{label}</span>
+              <kbd className="text-[12px] font-medium text-gray-600 bg-gray-100 border border-gray-200 rounded px-1.5 py-0.5">{keys}</kbd>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// exported for tests
 export function CreatedToast({ toast, onView, onClose }) {
   const [copied, setCopied] = useState(false)
   return (
@@ -219,6 +244,8 @@ export default function App() {
   const [finding, setFinding] = useState(false)
   const [newTask, setNewTask] = useState(null) // { sprint?, parentId? } while the create-task modal is open
   const [created, setCreated] = useState(null) // { id, title } — "task created" toast
+  const [showHelp, setShowHelp] = useState(false)
+  const [collapseTick, setCollapseTick] = useState(0) // bumping it tells Board/Backlog to fold all epics
 
   useEffect(() => {
     if (!created) return
@@ -230,7 +257,12 @@ export default function App() {
     if (!dir) return
     const onKey = e => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') { e.preventDefault(); setFinding(true) }
-      if (e.key === 'Escape') setFinding(false)
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'h') {
+        e.preventDefault()
+        setCollapseTick(t => t + 1)
+      }
+      if (e.key === '?' && !/input|textarea|select/i.test(e.target.tagName)) setShowHelp(v => !v)
+      if (e.key === 'Escape') { setFinding(false); setShowHelp(false) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -565,6 +597,9 @@ export default function App() {
         <button onClick={() => refresh()} title="Refresh beads data" className={btnCls}>
           <RefreshIcon spinning={loading} />
         </button>
+        <button onClick={() => setShowHelp(true)} title="Keyboard shortcuts (?)" className={`${btnCls} text-[13px] font-semibold`}>
+          ?
+        </button>
       </div>
 
       {error && (
@@ -614,6 +649,7 @@ export default function App() {
             onSelect={setSelectedId}
             selectedId={selectedId}
             onNewIssue={name => setNewTask({ sprint: name })}
+            collapseTick={collapseTick}
           />
         )}
 
@@ -627,6 +663,8 @@ export default function App() {
             onClose={() => setNewTask(null)}
           />
         )}
+
+        {showHelp && <ShortcutsModal onClose={() => setShowHelp(false)} />}
 
         {finding && (
           <FindModal

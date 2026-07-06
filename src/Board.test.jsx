@@ -33,30 +33,22 @@ test('empty state without an active sprint', () => {
   expect(p.goBacklog).toHaveBeenCalled()
 })
 
-test('renders columns with only sprint issues', () => {
+test('renders columns with only sprint issues, epics hidden', () => {
   render(<Board {...props()} />)
   for (const title of ['To Do', 'Blocked', 'In Progress', 'Done']) screen.getByText(title)
   screen.getByText('Task One')
-  expect(screen.getAllByText('Epic One').length).toBeGreaterThan(0) // slim row + epic chip on its child card
-  screen.getByText('Epic Two') // epic without children in sprint → plain slim row
+  expect(screen.getAllByText('Epic One')).toHaveLength(1) // only the epic chip on its child card
+  expect(screen.queryByText('Epic Two')).toBeNull() // epics never render as cards
   expect(screen.queryByText('Not in sprint')).toBeNull()
 })
 
-test('clicking cards and epic rows selects them', () => {
+test('clicking cards and epic chips selects them', () => {
   const p = props()
   render(<Board {...p} />)
   fireEvent.click(screen.getByText('Task One'))
   expect(p.onSelect).toHaveBeenCalledWith('t1')
-  fireEvent.click(screen.getAllByText('Epic One')[0])
+  fireEvent.click(screen.getByText('Epic One')) // chip on the child card
   expect(p.onSelect).toHaveBeenCalledWith('e1')
-})
-
-test('folding an epic hides its children', () => {
-  render(<Board {...props()} />)
-  fireEvent.click(screen.getByTitle('Hide tasks in this sprint'))
-  expect(screen.queryByText('Task One')).toBeNull()
-  fireEvent.click(screen.getByTitle('Show tasks in this sprint'))
-  screen.getByText('Task One')
 })
 
 test('column drag over, leave and drop', () => {
@@ -93,12 +85,4 @@ test('top-half drop inserts before the target', () => {
   Object.defineProperty(drop, 'clientY', { value: 5 })
   fireEvent(card, drop)
   expect(p.onReorder).toHaveBeenCalledWith('t2', 't1', true)
-})
-
-test('epic group row toggles via its header button', () => {
-  render(<Board {...props()} />)
-  const epicRow = screen.getAllByText('Epic One')[0] // slim row title, not the child card's chip
-  fireEvent.dragStart(epicRow, { dataTransfer: { setData: vi.fn() } })
-  fireEvent.dragOver(epicRow, { dataTransfer: {} })
-  fireEvent.drop(epicRow, { dataTransfer: { getData: () => 't2' } })
 })

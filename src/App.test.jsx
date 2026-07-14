@@ -377,6 +377,22 @@ test('deleting an issue asks for confirmation first', async () => {
   await waitFor(() => expect(screen.queryByText('Delete task')).toBeNull()) // detail closed
 })
 
+test('shift-selecting backlog rows and pressing Delete removes them all', async () => {
+  const api = await openApp({ settings: projSettings(), issues: projIssues() })
+  goBacklog()
+  fireEvent.click(await screen.findByText('Task Two'))
+  fireEvent.click(screen.getByText('Task Four'), { shiftKey: true })
+
+  window.confirm.mockReturnValueOnce(false)
+  fireEvent.keyDown(window, { key: 'Delete' })
+  expect(api.bd).not.toHaveBeenCalledWith('/proj', ['delete', 't2', '--force'])
+
+  fireEvent.keyDown(window, { key: 'Backspace' })
+  expect(window.confirm).toHaveBeenCalledWith('Delete 2 issues? This cannot be undone.')
+  await waitFor(() => expect(api.bd).toHaveBeenCalledWith('/proj', ['delete', 't2', '--force']))
+  await waitFor(() => expect(api.bd).toHaveBeenCalledWith('/proj', ['delete', 't4', '--force']))
+})
+
 test('tab and selection come from the URL', async () => {
   window.history.pushState({}, '', '/?tab=backlog&sel=t4')
   await openApp({ settings: projSettings(), issues: projIssues() })

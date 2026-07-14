@@ -3,16 +3,17 @@ import { sprintLabels } from './model'
 import { inTopHalf, indicatorStyle } from './Board'
 import { TypeIcon, PriorityBadge, StatusDot, EpicChip, DepBadges, ProgressPill, Chevron, PencilIcon } from './ui'
 
-function Row({ issue, maps, onSelect, selected, nested, group, expanded, onToggle, onRowOver, onRowDrop, indicator }) {
+function Row({ issue, maps, onSelect, selected, nested, group, expanded, onToggle, onRowOver, onRowDrop, indicator, dragIds }) {
   const parent = maps.byId[maps.parentOf[issue.id]]
   return (
     <div
       draggable
-      onDragStart={e => e.dataTransfer.setData('text/plain', issue.id)}
+      onDragStart={e => e.dataTransfer.setData('text/plain', (dragIds || [issue.id]).join('\n'))}
       onDragOver={onRowOver}
       onDrop={onRowDrop}
       style={indicatorStyle(indicator)}
-      onClick={() => onSelect(issue.id)}
+      onMouseDown={e => { if (e.shiftKey) e.preventDefault() }} // shift-click extends selection, not browser text selection
+      onClick={e => onSelect(issue.id, e)}
       className={`flex items-center gap-2 pr-3 h-9 border-b border-gray-100 last:border-b-0 cursor-pointer ${
         nested ? 'pl-6' : 'pl-3'
       } ${selected ? 'bg-indigo-50' : group ? 'bg-violet-50/60 hover:bg-violet-50' : 'hover:bg-gray-50'}`}
@@ -53,7 +54,7 @@ function Row({ issue, maps, onSelect, selected, nested, group, expanded, onToggl
 export default function Backlog({
   issues, maps, sprintNames, completedNames = [], activeSprint, labelFor, showClosed,
   onMoveSprint, sortIssues, onReorder, onStart, onComplete, onCreate, onRename, onSelect, selectedId, onNewIssue,
-  collapseTick,
+  onDeleteMany, collapseTick,
 }) {
   const [over, setOver] = useState() // sprint name | null (backlog) | undefined (none)
   const [overRow, setOverRow] = useState(null) // { id, before } — insert-position indicator
@@ -63,6 +64,20 @@ export default function Backlog({
   const [renameVal, setRenameVal] = useState('')
   const [secOpen, setSecOpen] = useState({}) // user overrides; completed sections default collapsed
   const [foldedEpics, setFoldedEpics] = useState(() => new Set()) // epic ids with hidden children
+  const [multiSel, setMultiSel] = useState(() => new Set()) // shift-click range selection
+
+  // Delete/Backspace removes every shift-selected row; ids stay selected if the confirm is cancelled
+  useEffect(() => {
+    if (multiSel.size === 0) return
+    const onKey = e => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return
+      if (/input|textarea|select/i.test(e.target.tagName)) return
+      e.preventDefault()
+      onDeleteMany([...multiSel])
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [multiSel, onDeleteMany])
 
   // ⌘⇧H in App bumps the tick → fold every epic; ref guard skips the mount run so tab switches stay unfolded
   const lastTick = useRef(collapseTick)
@@ -91,6 +106,33 @@ export default function Backlog({
     // the eye toggle hides closed issues everywhere in the backlog; completed sprints are all-closed history
     if (!showClosed && !done) list = list.filter(i => i.status !== 'closed')
     return list
+  }
+
+  // every rendered row id, top to bottom — shift-click selects a contiguous slice of this
+  const visibleIds = sections.flatMap(({ name, done }) => {
+    const key = (done ? 'done:' : '') + (name ?? '__backlog__')
+    if (key in secOpen ? !secOpen[key] : !!done) return []
+    const rows = rowsFor(name, done)
+    const idsHere = new Set(rows.map(i => i.id))
+    return sortIssues(rows.filter(i => !(maps.parentOf[i.id] && idsHere.has(maps.parentOf[i.id])))).flatMap(i => [
+      i.id,
+      ...(i.issue_type === 'epic' && !foldedEpics.has(i.id)
+        ? sortIssues(rows.filter(x => maps.parentOf[x.id] === i.id)).map(k => k.id)
+        : []),
+    ])
+  })
+
+  const select = (id, e) => {
+    if (e?.shiftKey && selectedId) {
+      const a = visibleIds.indexOf(selectedId)
+      const b = visibleIds.indexOf(id)
+      if (a !== -1 && b !== -1) {
+        setMultiSel(new Set(visibleIds.slice(Math.min(a, b), Math.max(a, b) + 1)))
+        return // anchor stays put so the next shift-click re-ranges from it
+      }
+    }
+    setMultiSel(new Set())
+    onSelect(id)
   }
 
   const submitCreate = () => {
@@ -150,10 +192,11 @@ export default function Backlog({
             e.stopPropagation()
             setOver(undefined)
             setOverRow(null)
-            const id = e.dataTransfer.getData('text/plain')
-            if (!id || id === r.id) return
-            if (!idsHere.has(id)) onMoveSprint(id, name)
-            onReorder(id, r.id, inTopHalf(e))
+            const ids = e.dataTransfer.getData('text/plain').split('\n').filter(id => id && id !== r.id)
+            if (!ids.length) return
+            ids.filter(id => !idsHere.has(id)).forEach(id => onMoveSprint(id, name))
+            // ponytail: multi-drops keep their existing order; per-row insert of a range if anyone asks
+            if (ids.length === 1) onReorder(ids[0], r.id, inTopHalf(e))
           }
           const rowIndicator = r => (overRow?.id === r.id ? (overRow.before ? 'top' : 'bottom') : null)
           return (
@@ -165,8 +208,7 @@ export default function Backlog({
                 if (done) return
                 e.preventDefault()
                 setOver(undefined)
-                const id = e.dataTransfer.getData('text/plain')
-                if (id) onMoveSprint(id, name)
+                e.dataTransfer.getData('text/plain').split('\n').filter(Boolean).forEach(id => onMoveSprint(id, name))
               }}
               className={`rounded-lg border bg-white transition-colors ${
                 over === name ? 'border-indigo-400 ring-1 ring-indigo-300' : 'border-gray-200'
@@ -262,8 +304,9 @@ export default function Backlog({
                         <Row
                           issue={i}
                           maps={maps}
-                          onSelect={onSelect}
-                          selected={i.id === selectedId}
+                          onSelect={select}
+                          selected={i.id === selectedId || multiSel.has(i.id)}
+                          dragIds={multiSel.has(i.id) ? [...multiSel] : undefined}
                           group={isGroup}
                           expanded={expanded}
                           onToggle={() => toggleSet(foldedEpics, setFoldedEpics, i.id)}
@@ -273,7 +316,8 @@ export default function Backlog({
                         />
                         {isGroup && expanded && kidsHere.map(k => (
                           <Row
-                            key={k.id} issue={k} maps={maps} onSelect={onSelect} selected={k.id === selectedId} nested
+                            key={k.id} issue={k} maps={maps} onSelect={select} selected={k.id === selectedId || multiSel.has(k.id)} nested
+                            dragIds={multiSel.has(k.id) ? [...multiSel] : undefined}
                             onRowOver={rowOver(k)} onRowDrop={rowDrop(k)} indicator={rowIndicator(k)}
                           />
                         ))}

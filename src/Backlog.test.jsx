@@ -163,3 +163,37 @@ test('clicking a row selects it', () => {
   fireEvent.click(screen.getByText('Backlog Task'))
   expect(p.onSelect).toHaveBeenCalledWith('b1')
 })
+
+test('shift-click selects the visual range and Delete removes it', () => {
+  const p = props({ selectedId: 'e1', onDeleteMany: vi.fn() })
+  render(<Backlog {...p} />)
+  fireEvent.mouseDown(screen.getByText('Backlog Task'), { shiftKey: true }) // suppresses browser text selection
+  fireEvent.click(screen.getByText('Backlog Task'), { shiftKey: true })
+  expect(p.onSelect).not.toHaveBeenCalled() // shift extends the selection, it doesn't open the row
+  fireEvent.keyDown(window, { key: 'Delete' })
+  expect(p.onDeleteMany).toHaveBeenCalledWith(['e1', 't1', 'b1']) // epic, its nested task, then across sections
+})
+
+test('shift-selected rows drag together into a sprint', () => {
+  const p = props({ selectedId: 'e1', onDeleteMany: vi.fn() })
+  render(<Backlog {...p} />)
+  fireEvent.click(screen.getByText('Backlog Task'), { shiftKey: true })
+  const setData = vi.fn()
+  fireEvent.dragStart(screen.getByText('Task One'), { dataTransfer: { setData } })
+  expect(setData).toHaveBeenCalledWith('text/plain', 'e1\nt1\nb1')
+  const beta = screen.getByText('Drag issues here to add them to this sprint.')
+  fireEvent.drop(beta, { dataTransfer: { getData: () => 'e1\nt1\nb1' } })
+  expect(p.onMoveSprint).toHaveBeenCalledWith('e1', 'Beta')
+  expect(p.onMoveSprint).toHaveBeenCalledWith('t1', 'Beta')
+  expect(p.onMoveSprint).toHaveBeenCalledWith('b1', 'Beta')
+})
+
+test('plain click clears the range selection', () => {
+  const p = props({ selectedId: 'e1', onDeleteMany: vi.fn() })
+  render(<Backlog {...p} />)
+  fireEvent.click(screen.getByText('Backlog Task'), { shiftKey: true })
+  fireEvent.click(screen.getByText('Task One')) // no shift → back to single select
+  expect(p.onSelect).toHaveBeenCalledWith('t1')
+  fireEvent.keyDown(window, { key: 'Delete' })
+  expect(p.onDeleteMany).not.toHaveBeenCalled()
+})

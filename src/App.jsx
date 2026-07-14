@@ -186,6 +186,8 @@ export function ShortcutsModal({ onClose }) {
     ['⌘F', 'Find issues'],
     ['⌘S', 'Save changes (open task)'],
     ['⌘⇧H', 'Collapse all epic tasks (backlog)'],
+    ['⇧Click', 'Select a range of rows (backlog)'],
+    ['⌫ / Del', 'Delete selected rows (backlog)'],
     ['?', 'Keyboard shortcuts'],
     ['Esc', 'Close dialogs & panels'],
   ]
@@ -400,6 +402,13 @@ export default function App() {
     if (cur === epicId) return
     if (cur) await bdRun(['dep', 'remove', childId, cur])
     if (epicId) await bdRun(['dep', 'add', childId, epicId, '--type', 'parent-child'])
+    await refresh()
+  }
+
+  async function deleteMany(ids) {
+    if (!window.confirm(`Delete ${ids.length} issue${ids.length === 1 ? '' : 's'}? This cannot be undone.`)) return
+    for (const id of ids) await bdRun(['delete', id, '--force'])
+    setSelectedId(null)
     await refresh()
   }
 
@@ -650,6 +659,7 @@ export default function App() {
             onSelect={setSelectedId}
             selectedId={selectedId}
             onNewIssue={name => setNewTask({ sprint: name })}
+            onDeleteMany={deleteMany}
             collapseTick={collapseTick}
           />
         )}

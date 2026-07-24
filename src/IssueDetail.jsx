@@ -127,7 +127,7 @@ export default function IssueDetail({
   })
 
   const parent = maps.byId[maps.parentOf[issue.id]]
-  const epics = Object.values(maps.byId).filter(i => i.issue_type === 'epic')
+  const epics = Object.values(maps.byId).filter(i => i.issue_type === 'epic' && i.status !== 'closed')
   const kids = maps.childrenOf[issue.id] || []
   const prog = epicProgress(issue.id, maps)
   const blockers = maps.blockedBy[issue.id] || []
@@ -264,7 +264,7 @@ export default function IssueDetail({
         </Section>
 
         {issue.issue_type !== 'epic' && (
-          <Section title="Epic">
+          <Section title="Epic (open)">
             {epicEdit === null ? (
               <div className="flex items-center gap-1.5">
                 {parent ? <EpicChip epic={parent} onClick={onSelect} /> : <span className="text-[13px] text-gray-400">None</span>}

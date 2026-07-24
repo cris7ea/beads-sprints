@@ -13,6 +13,7 @@ const issues = [
   { id: 'b1', title: 'Blocker', issue_type: 'task', priority: 2, status: 'open', created_at: '2026-01-01', updated_at: '2026-01-02' },
   { id: 'r1', title: 'Related item', issue_type: 'task', priority: 2, status: 'open', created_at: '2026-01-01', updated_at: '2026-01-02' },
   { id: 'k1', title: 'Kid', issue_type: 'task', priority: 2, status: 'closed', created_at: '2026-01-01', updated_at: '2026-01-02', dependencies: [{ type: 'parent-child', depends_on_id: 'e1' }, { type: 'blocks', depends_on_id: 't1' }] },
+  { id: 'e2', title: 'Done Epic', issue_type: 'epic', priority: 1, status: 'closed', labels: [], created_at: '2026-01-01', updated_at: '2026-01-02' },
 ]
 const maps = buildMaps(issues)
 maps.childrenOf.e1.push('ghost') // unknown id → LinkRow fallback
@@ -109,7 +110,7 @@ test('status, priority, type and sprint selects', () => {
 test('epic edit: pencil opens the dropdown, check saves, cross discards', () => {
   const p = props()
   render(<IssueDetail {...p} />)
-  const epicSelect = () => screen.getByText('Epic').parentElement.parentElement.querySelector('select')
+  const epicSelect = () => screen.getByText('Epic (open)').parentElement.parentElement.querySelector('select')
 
   fireEvent.click(screen.getByTitle('Edit epic'))
   expect(epicSelect().value).toBe('e1')
@@ -131,7 +132,7 @@ test('epic edit: pencil opens the dropdown, check saves, cross discards', () => 
 test('⌘S commits a pending epic edit, Escape discards it', () => {
   const p = props()
   render(<IssueDetail {...p} />)
-  const epicSelect = () => screen.getByText('Epic').parentElement.parentElement.querySelector('select')
+  const epicSelect = () => screen.getByText('Epic (open)').parentElement.parentElement.querySelector('select')
 
   fireEvent.click(screen.getByTitle('Edit epic'))
   fireEvent.change(epicSelect(), { target: { value: '' } })
@@ -152,16 +153,26 @@ test('orphan task shows None and can be assigned to an epic', () => {
   render(<IssueDetail {...p} />)
   screen.getByText('None')
   fireEvent.click(screen.getByTitle('Edit epic'))
-  const select = screen.getByText('Epic').parentElement.parentElement.querySelector('select')
+  const select = screen.getByText('Epic (open)').parentElement.parentElement.querySelector('select')
   expect(select.value).toBe('')
   fireEvent.change(select, { target: { value: 'e1' } })
   fireEvent.click(screen.getByTitle('Save'))
   expect(p.onSetEpic).toHaveBeenCalledWith('b1', 'e1')
 })
 
+test('closed epics are excluded from the epic dropdown', () => {
+  const p = props({ issue: maps.byId.b1 })
+  render(<IssueDetail {...p} />)
+  fireEvent.click(screen.getByTitle('Edit epic'))
+  const select = screen.getByText('Epic (open)').parentElement.parentElement.querySelector('select')
+  const opts = [...select.options].map(o => o.textContent)
+  expect(opts).toContain('Big Epic')
+  expect(opts).not.toContain('Done Epic')
+})
+
 test('epic section is hidden for epics', () => {
   render(<IssueDetail {...props({ issue: maps.byId.e1 })} />)
-  expect(screen.queryByText('Epic')).toBeNull()
+  expect(screen.queryByText('Epic (open)')).toBeNull()
 })
 
 test('sprint select keeps an unknown membership as an extra option', () => {
